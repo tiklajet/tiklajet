@@ -1,21 +1,16 @@
+// back-end/middleware/authMiddleware.js
 const jwt = require('jsonwebtoken');
 
-const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+module.exports = (req, res, next) => {
+  const h = req.headers.authorization || '';
+  if (!h.startsWith('Bearer ')) return res.status(401).json({ message: 'Token yok' });
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Yetkisiz erişim: Token bulunamadı' });
-  }
-
-  const token = authHeader.split(' ')[1];
-
+  const token = h.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, 'gizliAnahtar');
-    req.user = decoded;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET); // .env: JWT_SECRET
+    req.user = decoded; // { id: ... }
     next();
-  } catch (err) {
-    return res.status(403).json({ message: 'Geçersiz token' });
+  } catch {
+    return res.status(401).json({ message: 'Geçersiz / süresi dolmuş token' });
   }
 };
-
-module.exports = verifyToken;
