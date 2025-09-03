@@ -38,6 +38,8 @@ app.use('/api/admin', verifyToken, requireAdmin, adminRoutes);
 // Root
 app.get('/', (_req, res) => res.send('TıklaJet Backend Başladı!'));
 
+app.get('/api/health', (_req, res) => res.json({ ok: true }));  
+
 // 404 EN SONDA
 app.use((req, res) =>
   res.status(404).json({ ok: false, path: req.originalUrl, message: 'Not found' })
