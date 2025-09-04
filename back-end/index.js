@@ -1,51 +1,43 @@
 // back-end/index.js
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 const express = require('express');
+const cors = require('cors');
 const mongoose = require('mongoose');
 
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-
-const verifyToken  = require('./middleware/authMiddleware');
-const requireAdmin = require('./middleware/requireAdmin');
-
-const userRoutes     = require('./routes/userRoutes');
-const campaignRoutes = require('./routes/campaignRoutes');
-const taskRoutes     = require('./routes/taskRoutes');
-const payoutRoutes   = require('./routes/payoutRoutes');
-const adminRoutes    = require('./routes/adminRoutes');
-
 const app = express();
-const PORT = process.env.PORT || 4000;
-
-// --- Global middleware'ler (ROUTER'lardan ÖNCE) ---
-app.use(helmet());
 app.use(cors({ origin: '*' }));
 app.use(express.json());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300 })); // 15 dk / 300 istek
 
-// Sağlık
+// 1) HEALTH (404'tan ÖNCE) – Render health check buraya bakıyor
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-// --- Router mount'ları (TEK ve 404'tan ÖNCE) ---
-app.use('/api/user', userRoutes);
-app.use('/api/campaigns', campaignRoutes);
-app.use('/api/tasks', verifyToken, taskRoutes);
-app.use('/api/payout', verifyToken, payoutRoutes);
-app.use('/api/admin', verifyToken, requireAdmin, adminRoutes);
+// 2) ROUTER’LAR
+app.use('/api/user', require('./routes/userRoutes'));
+app.use('/api/campaigns', require('./routes/campaignRoutes'));
+app.use('/api/tasks', require('./routes/taskRoutes'));
+app.use('/api/payout', require('./routes/payoutRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 
-// Root
-app.get('/', (_req, res) => res.send('TıklaJet Backend Başladı!'));
+// 3) 404 – en sonda
+app.use((req, res) => res.status(404).json({ ok:false, path:req.originalUrl, message:'Not found' }));
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));  
+const PORT = process.env.PORT || 4000;
 
-// 404 EN SONDA
-app.use((req, res) =>
-  res.status(404).json({ ok: false, path: req.originalUrl, message: 'Not found' })
-);
+// Sunucuyu HER HALDE başlat (Mongo çalışmasa bile health dönebilsin)
+app.listen(PORT, () => console.log('🚀 http://localhost:' + PORT));
 
-// MongoDB + server  (deprecated uyarısını temizledik)
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => app.listen(PORT, () => console.log(`🚀 http://localhost:${PORT}`)))
-  .catch(err => console.error('MongoDB error:', err));
+// Mongo'ya ayrı bağlan; hata olsa bile app ayakta kalsın
+(async () => {
+  try {
+    if (process.env.MONGODB_URI) {
+      await mongoose.connect(process.env.MONGODB_URI);
+      console.log('✅ MongoDB bağlantısı başarılı');
+    } else {
+      console.warn('⚠️  MONGODB_URI tanımlı değil; DB bağlanmadı');
+    }
+  } catch (e) {
+    console.error('❌ MongoDB bağlantı hatası:', e.message);
+  }
+})();
